@@ -5,8 +5,9 @@ let mainDebugLogging = false;
 
 import {renderSchedule} from './render';
 import {groupsByType, sortEvents, loadCatalog} from './common';
-import {Schedule, Course, Group, Catalog, ScheduleRating, FilterSettings, AcademicEvent} from './common';
+import {Schedule, Course, Group, Catalog, FilterSettings, AcademicEvent} from './common';
 import {displayName, formatDate, minutesToTime} from './formatting';
+import {AllRatings, RatingType, ScheduleRating} from './ratings';
 
 /**
  * Settings to be saved. Note that this must be serializable directly as JSON,
@@ -351,14 +352,17 @@ function saveSettings() {
     ratingMin: getNullRating(),
   };
 
-  Object.keys(allRatings).forEach(function(r) {
-    // @ts-ignore: allRatings
-    settings.filterSettings.ratingMin[r] = getNumInputValueWithDefault(
-        ($(`#rating-${r}-min`)[0]) as HTMLInputElement, null);
-    // @ts-ignore: allRatings
-    settings.filterSettings.ratingMax[r] = getNumInputValueWithDefault(
-        ($(`#rating-${r}-max`)[0]) as HTMLInputElement, null);
-  });
+  for (let r of Array.from(AllRatings.keys())) {
+    let shortName = RatingType[r];
+    settings.filterSettings.ratingMin.set(
+        r,
+        getNumInputValueWithDefault(
+            ($(`#rating-${shortName}-min`)[0]) as HTMLInputElement, null));
+    settings.filterSettings.ratingMax.set(
+        r,
+        getNumInputValueWithDefault(
+            ($(`#rating-${shortName}-max`)[0]) as HTMLInputElement, null));
+  }
 
   window.localStorage.setItem('ttime3_settings', JSON.stringify(settings));
 
@@ -703,67 +707,40 @@ function goToSchedule(i: number) {
       $('#rendered-schedule')[0], schedule, getCourseColorMap(selectedCourses));
 }
 
-let sortedByRating = '';
+let sortedByRating: RatingType = null;
 
 let sortedByRatingAsc = true;
-
-// TODO(lutzky): allRatings breaks typescript type checks and forces us to
-// use a lot of ts-ignore comments.
-const allRatings = {
-  earliestStart: {
-    name: 'Earliest start',
-    explanation: 'Hour at which the earliest class of the week start',
-    badgeTextFunc: (s: number) => `Earliest start: ${s}`,
-  },
-  latestFinish: {
-    name: 'Latest finish',
-    explanation: 'Hour at which the latest class of the week finishes',
-    badgeTextFunc: (s: number) => `Latest finish: ${s}`,
-  },
-  numRuns: {
-    name: 'Number of runs',
-    explanation: 'Number of adjacent classes in different buildings',
-    badgeTextFunc: (s: number) => `${s} runs`,
-  },
-  freeDays: {
-    name: 'Free days',
-    explanation: 'Number of days with no classes',
-    badgeTextFunc: (s: number) => `${s} free days`,
-  },
-};
 
 /**
  * Sort current schedule by rating
  */
-function sortByRating(rating: string) {
+function sortByRating(rating: RatingType) {
   if (sortedByRating == rating) {
     sortedByRatingAsc = !sortedByRatingAsc;
   }
 
   sortedByRating = rating;
   possibleSchedules.sort(function(a, b) {
-    // @ts-ignore: allRatings
-    return (sortedByRatingAsc ? 1 : -1) * (a.rating[rating] - b.rating[rating]);
+    return (sortedByRatingAsc ? 1 : -1) *
+        (a.rating.get(rating) - b.rating.get(rating));
   });
 
   goToSchedule(0);
-  Object.keys(allRatings).forEach(function(rating) {
-    $(`#rating-badge-${rating}`)
+  for (let r of Array.from(AllRatings.keys())) {
+    $(`#rating-badge-${RatingType[r]}`)
         .replaceWith(getRatingBadge(rating, possibleSchedules[0]));
-  });
+  }
 }
 
 /**
  * Get a badge for the given rating according to the schedule type
  */
-function getRatingBadge(rating: string, schedule: Schedule): JQuery {
+function getRatingBadge(rating: RatingType, schedule: Schedule): JQuery {
   let result = $('<a>', {
     class: 'badge badge-info',
     id: `rating-badge-${rating}`,
-    // @ts-ignore: allRatings
-    text: allRatings[rating].badgeTextFunc(schedule.rating[rating]),
-    // @ts-ignore: allRatings
-    title: allRatings[rating].explanation,
+    text: AllRatings.get(rating).badgeTextFunc(schedule.rating.get(rating)),
+    title: AllRatings.get(rating).explanation,
     href: '#/',
     click: function() {
       sortByRating(rating);
@@ -784,7 +761,7 @@ function getRatingBadge(rating: string, schedule: Schedule): JQuery {
 function writeScheduleContents(target: JQuery, schedule: Schedule) {
   target.empty();
 
-  Object.keys(allRatings)
+  Array.from(AllRatings.keys())
       .map(rating => getRatingBadge(rating, schedule))
       .forEach(function(badge) {
         target.append(badge).append(' ');
@@ -936,12 +913,7 @@ function coursesSelectizeSetup() {
  * Get a null rating
  */
 function getNullRating(): ScheduleRating {
-  return {
-    earliestStart: null,
-    freeDays: null,
-    latestFinish: null,
-    numRuns: null,
-  };
+  return new Map();
 }
 
 /**
@@ -977,14 +949,16 @@ function loadSettings(s: string): Settings {
 
   {
     let fs = result.filterSettings;
+
+    console.info('fs: ', fs);
+    console.info('fs.ratingMin: ', fs.ratingMin);
     setCheckboxValueById('filter.noCollisions', fs.noCollisions);
 
-    Object.keys(allRatings).forEach(function(r) {
-      // @ts-ignore: allRatings
-      $(`#rating-${r}-min`).val(fs.ratingMin[r]);
-      // @ts-ignore: allRatings
-      $(`#rating-${r}-max`).val(fs.ratingMax[r]);
-    });
+    for (let r of Array.from(AllRatings.keys())) {
+      let name = RatingType[r];
+      $(`#rating-${name}-min`).val(fs.ratingMin.get(r));
+      $(`#rating-${name}-max`).val(fs.ratingMax.get(r));
+    }
   }
 
   return result;
@@ -1010,20 +984,19 @@ function totalPossibleSchedules(courses: Set<Course>): number {
  */
 function buildRatingsLimitForm() {
   let form = $('#rating-limits-form');
-  Object.keys(allRatings).forEach(function(r) {
+  for (let r of Array.from(AllRatings.keys())) {
+    let shortName = RatingType[r];
     let row = $('<div>', {class: 'row'});
     form.append(row);
     row.append($('<div>', {
       class: 'col col-form-label',
-      // @ts-ignore: allRatings
-      text: allRatings[r].name,
-      // @ts-ignore: allRatings
-      title: allRatings[r].explanation,
+      text: AllRatings.get(r).name,
+      title: AllRatings.get(r).explanation,
     }));
     row.append($('<div>', {
       class: 'col',
       html: $('<input>', {
-        id: `rating-${r}-min`,
+        id: `rating-${shortName}-min`,
         type: 'number',
         class: 'form-control',
         placeholder: '-∞',
@@ -1033,14 +1006,14 @@ function buildRatingsLimitForm() {
     row.append($('<div>', {
       class: 'col',
       html: $('<input>', {
-        id: `rating-${r}-max`,
+        id: `rating-${shortName}-max`,
         type: 'number',
         class: 'form-control',
         placeholder: '∞',
         change: saveSettings,
       }),
     }));
-  });
+  }
 }
 
 buildRatingsLimitForm();

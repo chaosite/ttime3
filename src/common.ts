@@ -1,4 +1,5 @@
 import {parseCheeseFork} from './cheesefork';
+import {ScheduleRating} from './ratings';
 
 export class Faculty {
   name: string;
@@ -39,22 +40,6 @@ export class Schedule {
   events: AcademicEvent[];
   rating: ScheduleRating;
 }
-
-/**
- * earliestStart and latestFinish are in hours (e.g. 1:30PM is 13.5).
- *
- * numRuns is the amount of occurences where two adjacent events (endMinute
- * of the first one equals startMinute of the second, same day) are in the
- * same room.
- *
- * freeDays is the number of days in Sun-Thu with no events.
- */
-export class ScheduleRating {
-  earliestStart: number;
-  latestFinish: number;
-  numRuns: number;
-  freeDays: number;
-};
 
 export class FilterSettings {
   noCollisions: boolean;
