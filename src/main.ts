@@ -5,25 +5,37 @@ let mainDebugLogging = false;
 
 import {renderSchedule} from './render';
 import {groupsByType, sortEvents, loadCatalog} from './common';
-import {Schedule, Course, Group, Catalog, FilterSettings, AcademicEvent} from './common';
+import {Schedule, Course, Group, Catalog, AcademicEvent} from './common';
 import {displayName, formatDate, minutesToTime} from './formatting';
 import {AllRatings, RatingType, ScheduleRating} from './ratings';
+import {Settings, parseSettings} from './settings';
 
-/**
- * Settings to be saved. Note that this must be serializable directly as JSON,
- * so Settings and all of the types of its member variables can't have maps
- * nor sets.
- */
-class Settings {
-  selectedCourses: number[];
-  forbiddenGroups: string[];
-  customEvents: string;
-  catalogUrl: string;
-  filterSettings: FilterSettings;
+function loadSettings(s: string): Settings {
+  let result = parseSettings(s)
+
+  if (mainDebugLogging) {
+    console.info('Loaded settings:', result);
+  }
+
+  $('#catalog-url').val(result.catalogUrl);
+  $('#custom-events-textarea').val(result.customEvents);
+
+  {
+    let fs = result.filterSettings;
+
+    console.info('fs: ', fs);
+    console.info('fs.ratingMin: ', fs.ratingMin);
+    setCheckboxValueById('filter.noCollisions', fs.noCollisions);
+
+    for (let r of Array.from(AllRatings.keys())) {
+      let name = RatingType[r];
+      $(`#rating-${name}-min`).val(fs.ratingMin.get(r));
+      $(`#rating-${name}-max`).val(fs.ratingMax.get(r));
+    }
+  }
+
+  return result;
 }
-
-const defaultCatalogUrl =
-    'https://storage.googleapis.com/repy-176217.appspot.com/latest.json';
 
 /**
  * Set the given catalog URL and save settings. For use from HTML.
@@ -348,8 +360,8 @@ function saveSettings() {
   settings.filterSettings = {
     forbiddenGroups: Array.from(forbiddenGroups),
     noCollisions: getCheckboxValueById('filter.noCollisions'),
-    ratingMax: getNullRating(),
-    ratingMin: getNullRating(),
+    ratingMax: new Map(),
+    ratingMin: new Map(),
   };
 
   for (let r of Array.from(AllRatings.keys())) {
@@ -907,61 +919,6 @@ function coursesSelectizeSetup() {
       selectBox[0].selectize.clear();
     },
   });
-}
-
-/**
- * Get a null rating
- */
-function getNullRating(): ScheduleRating {
-  return new Map();
-}
-
-/**
- * Load settings from localStorage
- *
- * @param s - JSON form of settings
- */
-function loadSettings(s: string): Settings {
-  let result: Settings = {
-    catalogUrl: defaultCatalogUrl,
-    selectedCourses: [],
-    forbiddenGroups: [],
-    customEvents: '',
-    filterSettings: {
-      forbiddenGroups: [],
-      noCollisions: true,
-      ratingMin: getNullRating(),
-      ratingMax: getNullRating(),
-    },
-  };
-
-  if (s != '') {
-    result = $.extend(true /* deep */, result, JSON.parse(s) as Settings) as
-        Settings;
-  }
-
-  if (mainDebugLogging) {
-    console.info('Loaded settings:', result);
-  }
-
-  $('#catalog-url').val(result.catalogUrl);
-  $('#custom-events-textarea').val(result.customEvents);
-
-  {
-    let fs = result.filterSettings;
-
-    console.info('fs: ', fs);
-    console.info('fs.ratingMin: ', fs.ratingMin);
-    setCheckboxValueById('filter.noCollisions', fs.noCollisions);
-
-    for (let r of Array.from(AllRatings.keys())) {
-      let name = RatingType[r];
-      $(`#rating-${name}-min`).val(fs.ratingMin.get(r));
-      $(`#rating-${name}-max`).val(fs.ratingMax.get(r));
-    }
-  }
-
-  return result;
 }
 
 /**
