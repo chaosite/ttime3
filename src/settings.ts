@@ -38,10 +38,8 @@ export function parseSettings(s: string): Settings {
   };
 
   if (s != '') {
-    result = $.extend(true /* deep */, result, JSON.parse(s) as Settings) as
-        Settings;
+    result = {...result, ...JSON.parse(s)};
   }
 
   return result;
 }
-

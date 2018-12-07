@@ -7,7 +7,7 @@ import {renderSchedule} from './render';
 import {groupsByType, sortEvents, loadCatalog} from './common';
 import {Schedule, Course, Group, Catalog, AcademicEvent} from './common';
 import {displayName, formatDate, minutesToTime} from './formatting';
-import {AllRatings, RatingType, ScheduleRating} from './ratings';
+import {AllRatings, RatingType} from './ratings';
 import {Settings, parseSettings} from './settings';
 
 function loadSettings(s: string): Settings {
