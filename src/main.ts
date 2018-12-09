@@ -8,7 +8,7 @@ import {groupsByType, sortEvents, loadCatalog} from './common';
 import {Schedule, Course, Group, Catalog, AcademicEvent} from './common';
 import {displayName, formatDate, minutesToTime} from './formatting';
 import {AllRatings, RatingType} from './ratings';
-import {Settings, parseSettings} from './settings';
+import {Settings, parseSettings, stringifySettings} from './settings';
 
 function loadSettings(s: string): Settings {
   let result = parseSettings(s)
@@ -376,7 +376,7 @@ function saveSettings() {
             ($(`#rating-${shortName}-max`)[0]) as HTMLInputElement, null));
   }
 
-  window.localStorage.setItem('ttime3_settings', JSON.stringify(settings));
+  window.localStorage.setItem('ttime3_settings', stringifySettings(settings));
 
   if (mainDebugLogging) {
     console.info('Saved settings:', settings);

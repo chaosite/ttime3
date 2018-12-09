@@ -68,3 +68,22 @@ function loadRatingsMap(savedRatings: any): Map<RatingType, number> {
   }
   return result;
 }
+
+export function stringifySettings(s: Settings): string {
+  let result: any = {...{}, ...s};
+
+  result.filterSettings.ratingMax =
+      objectifyFilterSettings(result.filterSettings.ratingMax);
+  result.filterSettings.ratingMin =
+      objectifyFilterSettings(result.filterSettings.ratingMin);
+
+  return JSON.stringify(result);
+}
+
+function objectifyFilterSettings(fs: Map<RatingType, number>): any {
+  let result: any = {};
+  for (let k of fs.keys()) {
+    result[RatingType[k]] = fs.get(k);
+  }
+  return result;
+}

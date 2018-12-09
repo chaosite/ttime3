@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 
 import {RatingType} from '../src/ratings';
-import {parseSettings, Settings} from '../src/settings';
+import {parseSettings, Settings, stringifySettings} from '../src/settings';
 
 describe('Settings parser', function() {
   it('should work correctly with no settings', function() {
@@ -45,3 +45,71 @@ describe('Settings parser', function() {
     expect(want).to.deep.equal(got);
   });
 });
+
+describe('Settings stringifier', function() {
+  it('should work correctly with default settings', function() {
+    let s: Settings = {
+      selectedCourses: [],
+      forbiddenGroups: [],  // TODO(lutzky): Wait, what? Why is this duplicated?
+      customEvents: '',
+      catalogUrl:
+          'https://storage.googleapis.com/repy-176217.appspot.com/latest.json',
+      filterSettings: {
+        noCollisions: true,
+        forbiddenGroups: [],
+        ratingMin: new Map(),
+        ratingMax: new Map(),
+      },
+    };
+    let want: any = {
+      catalogUrl:
+          'https://storage.googleapis.com/repy-176217.appspot.com/latest.json',
+      customEvents: '',
+      filterSettings: {
+        forbiddenGroups: [],
+        noCollisions: true,
+        ratingMax: {},
+        ratingMin: {},
+      },
+      forbiddenGroups: [],
+      selectedCourses: [],
+    };
+    let got = stringifySettings(s);
+
+    let parsedGot = JSON.parse(got);
+    expect(want).to.deep.equal(parsedGot);
+  });
+  it('should work correctly with modified settings', function() {
+    let s: Settings = {
+      selectedCourses: [123, 456],
+      forbiddenGroups: [],  // TODO(lutzky): Wait, what? Why is this duplicated?
+      customEvents: '',
+      catalogUrl:
+          'https://storage.googleapis.com/repy-176217.appspot.com/latest.json',
+      filterSettings: {
+        noCollisions: true,
+        forbiddenGroups: [],
+        ratingMin:
+            new Map([[RatingType.freeDays, 1], [RatingType.earliestStart, 11]]),
+        ratingMax: new Map([[RatingType.numRuns, 5]]),
+      },
+    };
+    let want: any = {
+      catalogUrl:
+          'https://storage.googleapis.com/repy-176217.appspot.com/latest.json',
+      customEvents: '',
+      filterSettings: {
+        forbiddenGroups: [],
+        noCollisions: true,
+        ratingMax: {numRuns: 5},
+        ratingMin: {freeDays: 1, earliestStart: 11},
+      },
+      forbiddenGroups: [],
+      selectedCourses: [123, 456],
+    };
+    let got = stringifySettings(s);
+
+    let parsedGot = JSON.parse(got);
+    expect(want).to.deep.equal(parsedGot);
+  });
+})
