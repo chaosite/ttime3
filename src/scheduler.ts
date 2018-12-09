@@ -4,8 +4,9 @@
 //   schedulerDebugLogging = true;
 let schedulerDebugLogging = false;
 
-import {Schedule, Group, AcademicEvent, Course, ScheduleRating, FilterSettings} from './common';
+import {Schedule, Group, AcademicEvent, Course, FilterSettings} from './common';
 import {groupsByType, sortEvents, eventsCollide} from './common';
+import {AllRatings, RatingType, ScheduleRating} from './ratings';
 
 /**
  * Return the building in which ev happens
@@ -145,31 +146,26 @@ function runAllFilters(
  */
 function filterByRatings(
     schedules: Schedule[], settings: FilterSettings): Schedule[] {
-  Object.keys(settings.ratingMin).forEach(function(r) {
-    // @ts-ignore: allRatings
-    if (settings.ratingMin[r] == null && settings.ratingMax[r] == null) {
-      return;
+  for (let r of Array.from(AllRatings.keys())) {
+    let max = Infinity;
+    let min = -Infinity;
+
+    if (settings.ratingMin.has(r)) {
+      min = settings.ratingMin.get(r);
     }
 
-    schedules = filterWithDelta(schedules, function(schedule) {
-      if (
-          // @ts-ignore: allRatings
-          settings.ratingMin[r] != null &&
-          // @ts-ignore: allRatings
-          schedule.rating[r] < settings.ratingMin[r]) {
-        return false;
-      }
-      if (
-          // @ts-ignore: allRatings
-          settings.ratingMax[r] != null &&
-          // @ts-ignore: allRatings
-          schedule.rating[r] > settings.ratingMax[r]) {
-        return false;
-      }
+    if (settings.ratingMax.has(r)) {
+      max = settings.ratingMax.get(r);
+    }
 
-      return true;
+    schedules = filterWithDelta(schedules, function(schedule: Schedule) {
+      if (!schedule.rating.has(r)) {
+        return true;
+      }
+      let rating = schedule.rating.get(r);
+      return (rating >= min) && (rating <= max);
     }, `Rating '${r}'`);
-  });
+  }
 
   return schedules;
 }
@@ -193,12 +189,15 @@ function countFreeDays(events: AcademicEvent[]): number {
  * TODO(lutzky): rate is exported for testing purposes
  */
 export function rate(events: AcademicEvent[]): ScheduleRating {
-  return {
-    earliestStart: Math.min(...events.map(e => e.startMinute / 60.0)),
-    latestFinish: Math.max(...events.map(e => e.endMinute / 60.0)),
-    numRuns: countRuns(events),
-    freeDays: countFreeDays(events),
-  };
+  return new Map([
+    [
+      RatingType.earliestStart,
+      Math.min(...events.map(e => e.startMinute / 60.0)),
+    ],
+    [RatingType.latestFinish, Math.max(...events.map(e => e.endMinute / 60.0))],
+    [RatingType.numRuns, countRuns(events)],
+    [RatingType.freeDays, countFreeDays(events)],
+  ]);
 }
 
 /**

@@ -5,24 +5,37 @@ let mainDebugLogging = false;
 
 import {renderSchedule} from './render';
 import {groupsByType, sortEvents, loadCatalog} from './common';
-import {Schedule, Course, Group, Catalog, ScheduleRating, FilterSettings, AcademicEvent} from './common';
+import {Schedule, Course, Group, Catalog, AcademicEvent} from './common';
 import {displayName, formatDate, minutesToTime} from './formatting';
+import {AllRatings, RatingType} from './ratings';
+import {Settings, parseSettings, stringifySettings} from './settings';
 
-/**
- * Settings to be saved. Note that this must be serializable directly as JSON,
- * so Settings and all of the types of its member variables can't have maps
- * nor sets.
- */
-class Settings {
-  selectedCourses: number[];
-  forbiddenGroups: string[];
-  customEvents: string;
-  catalogUrl: string;
-  filterSettings: FilterSettings;
+function loadSettings(s: string): Settings {
+  let result = parseSettings(s)
+
+  if (mainDebugLogging) {
+    console.info('Loaded settings:', result);
+  }
+
+  $('#catalog-url').val(result.catalogUrl);
+  $('#custom-events-textarea').val(result.customEvents);
+
+  {
+    let fs = result.filterSettings;
+
+    console.info('fs: ', fs);
+    console.info('fs.ratingMin: ', fs.ratingMin);
+    setCheckboxValueById('filter.noCollisions', fs.noCollisions);
+
+    for (let r of Array.from(AllRatings.keys())) {
+      let name = RatingType[r];
+      $(`#rating-${name}-min`).val(fs.ratingMin.get(r));
+      $(`#rating-${name}-max`).val(fs.ratingMax.get(r));
+    }
+  }
+
+  return result;
 }
-
-const defaultCatalogUrl =
-    'https://storage.googleapis.com/repy-176217.appspot.com/latest.json';
 
 /**
  * Set the given catalog URL and save settings. For use from HTML.
@@ -347,20 +360,23 @@ function saveSettings() {
   settings.filterSettings = {
     forbiddenGroups: Array.from(forbiddenGroups),
     noCollisions: getCheckboxValueById('filter.noCollisions'),
-    ratingMax: getNullRating(),
-    ratingMin: getNullRating(),
+    ratingMax: new Map(),
+    ratingMin: new Map(),
   };
 
-  Object.keys(allRatings).forEach(function(r) {
-    // @ts-ignore: allRatings
-    settings.filterSettings.ratingMin[r] = getNumInputValueWithDefault(
-        ($(`#rating-${r}-min`)[0]) as HTMLInputElement, null);
-    // @ts-ignore: allRatings
-    settings.filterSettings.ratingMax[r] = getNumInputValueWithDefault(
-        ($(`#rating-${r}-max`)[0]) as HTMLInputElement, null);
-  });
+  for (let r of Array.from(AllRatings.keys())) {
+    let shortName = RatingType[r];
+    settings.filterSettings.ratingMin.set(
+        r,
+        getNumInputValueWithDefault(
+            ($(`#rating-${shortName}-min`)[0]) as HTMLInputElement, null));
+    settings.filterSettings.ratingMax.set(
+        r,
+        getNumInputValueWithDefault(
+            ($(`#rating-${shortName}-max`)[0]) as HTMLInputElement, null));
+  }
 
-  window.localStorage.setItem('ttime3_settings', JSON.stringify(settings));
+  window.localStorage.setItem('ttime3_settings', stringifySettings(settings));
 
   if (mainDebugLogging) {
     console.info('Saved settings:', settings);
@@ -503,8 +519,6 @@ const customEventRegex = new RegExp([
   /(.*)/,
 ].map(x => x.source).join(''));
 
-// TODO(lutzky): inverseDayIndex is causing type problems, making us use
-// some ts-ignore.
 const inverseDayIndex = {
   Sun: 0,
   Mon: 1,
@@ -571,8 +585,7 @@ function buildCustomEventsCourses(s: string): Course[] {
       throw Error('Invalid custom event line: ' + line);
     }
 
-    // @ts-ignore: inverseDayIndex
-    let day: number = inverseDayIndex[m[1]];
+    let day: number = inverseDayIndex[m[1] as keyof typeof inverseDayIndex];
     let startMinute = Number(Number(m[2]) * 60 + Number(m[3]));
     let endMinute = Number(Number(m[4]) * 60 + Number(m[5]));
     let desc = m[6];
@@ -703,67 +716,40 @@ function goToSchedule(i: number) {
       $('#rendered-schedule')[0], schedule, getCourseColorMap(selectedCourses));
 }
 
-let sortedByRating = '';
+let sortedByRating: RatingType = null;
 
 let sortedByRatingAsc = true;
-
-// TODO(lutzky): allRatings breaks typescript type checks and forces us to
-// use a lot of ts-ignore comments.
-const allRatings = {
-  earliestStart: {
-    name: 'Earliest start',
-    explanation: 'Hour at which the earliest class of the week start',
-    badgeTextFunc: (s: number) => `Earliest start: ${s}`,
-  },
-  latestFinish: {
-    name: 'Latest finish',
-    explanation: 'Hour at which the latest class of the week finishes',
-    badgeTextFunc: (s: number) => `Latest finish: ${s}`,
-  },
-  numRuns: {
-    name: 'Number of runs',
-    explanation: 'Number of adjacent classes in different buildings',
-    badgeTextFunc: (s: number) => `${s} runs`,
-  },
-  freeDays: {
-    name: 'Free days',
-    explanation: 'Number of days with no classes',
-    badgeTextFunc: (s: number) => `${s} free days`,
-  },
-};
 
 /**
  * Sort current schedule by rating
  */
-function sortByRating(rating: string) {
+function sortByRating(rating: RatingType) {
   if (sortedByRating == rating) {
     sortedByRatingAsc = !sortedByRatingAsc;
   }
 
   sortedByRating = rating;
   possibleSchedules.sort(function(a, b) {
-    // @ts-ignore: allRatings
-    return (sortedByRatingAsc ? 1 : -1) * (a.rating[rating] - b.rating[rating]);
+    return (sortedByRatingAsc ? 1 : -1) *
+        (a.rating.get(rating) - b.rating.get(rating));
   });
 
   goToSchedule(0);
-  Object.keys(allRatings).forEach(function(rating) {
-    $(`#rating-badge-${rating}`)
+  for (let r of Array.from(AllRatings.keys())) {
+    $(`#rating-badge-${RatingType[r]}`)
         .replaceWith(getRatingBadge(rating, possibleSchedules[0]));
-  });
+  }
 }
 
 /**
  * Get a badge for the given rating according to the schedule type
  */
-function getRatingBadge(rating: string, schedule: Schedule): JQuery {
+function getRatingBadge(rating: RatingType, schedule: Schedule): JQuery {
   let result = $('<a>', {
     class: 'badge badge-info',
     id: `rating-badge-${rating}`,
-    // @ts-ignore: allRatings
-    text: allRatings[rating].badgeTextFunc(schedule.rating[rating]),
-    // @ts-ignore: allRatings
-    title: allRatings[rating].explanation,
+    text: AllRatings.get(rating).badgeTextFunc(schedule.rating.get(rating)),
+    title: AllRatings.get(rating).explanation,
     href: '#/',
     click: function() {
       sortByRating(rating);
@@ -784,7 +770,7 @@ function getRatingBadge(rating: string, schedule: Schedule): JQuery {
 function writeScheduleContents(target: JQuery, schedule: Schedule) {
   target.empty();
 
-  Object.keys(allRatings)
+  Array.from(AllRatings.keys())
       .map(rating => getRatingBadge(rating, schedule))
       .forEach(function(badge) {
         target.append(badge).append(' ');
@@ -933,64 +919,6 @@ function coursesSelectizeSetup() {
 }
 
 /**
- * Get a null rating
- */
-function getNullRating(): ScheduleRating {
-  return {
-    earliestStart: null,
-    freeDays: null,
-    latestFinish: null,
-    numRuns: null,
-  };
-}
-
-/**
- * Load settings from localStorage
- *
- * @param s - JSON form of settings
- */
-function loadSettings(s: string): Settings {
-  let result: Settings = {
-    catalogUrl: defaultCatalogUrl,
-    selectedCourses: [],
-    forbiddenGroups: [],
-    customEvents: '',
-    filterSettings: {
-      forbiddenGroups: [],
-      noCollisions: true,
-      ratingMin: getNullRating(),
-      ratingMax: getNullRating(),
-    },
-  };
-
-  if (s != '') {
-    result = $.extend(true /* deep */, result, JSON.parse(s) as Settings) as
-        Settings;
-  }
-
-  if (mainDebugLogging) {
-    console.info('Loaded settings:', result);
-  }
-
-  $('#catalog-url').val(result.catalogUrl);
-  $('#custom-events-textarea').val(result.customEvents);
-
-  {
-    let fs = result.filterSettings;
-    setCheckboxValueById('filter.noCollisions', fs.noCollisions);
-
-    Object.keys(allRatings).forEach(function(r) {
-      // @ts-ignore: allRatings
-      $(`#rating-${r}-min`).val(fs.ratingMin[r]);
-      // @ts-ignore: allRatings
-      $(`#rating-${r}-max`).val(fs.ratingMax[r]);
-    });
-  }
-
-  return result;
-}
-
-/**
  * Figure out the total number of schedules possible for the set of courses,
  * disregarding filters.
  */
@@ -1010,20 +938,19 @@ function totalPossibleSchedules(courses: Set<Course>): number {
  */
 function buildRatingsLimitForm() {
   let form = $('#rating-limits-form');
-  Object.keys(allRatings).forEach(function(r) {
+  for (let r of Array.from(AllRatings.keys())) {
+    let shortName = RatingType[r];
     let row = $('<div>', {class: 'row'});
     form.append(row);
     row.append($('<div>', {
       class: 'col col-form-label',
-      // @ts-ignore: allRatings
-      text: allRatings[r].name,
-      // @ts-ignore: allRatings
-      title: allRatings[r].explanation,
+      text: AllRatings.get(r).name,
+      title: AllRatings.get(r).explanation,
     }));
     row.append($('<div>', {
       class: 'col',
       html: $('<input>', {
-        id: `rating-${r}-min`,
+        id: `rating-${shortName}-min`,
         type: 'number',
         class: 'form-control',
         placeholder: '-∞',
@@ -1033,14 +960,14 @@ function buildRatingsLimitForm() {
     row.append($('<div>', {
       class: 'col',
       html: $('<input>', {
-        id: `rating-${r}-max`,
+        id: `rating-${shortName}-max`,
         type: 'number',
         class: 'form-control',
         placeholder: '∞',
         change: saveSettings,
       }),
     }));
-  });
+  }
 }
 
 buildRatingsLimitForm();
