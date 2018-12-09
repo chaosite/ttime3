@@ -8,7 +8,7 @@ describe('Settings parser', function() {
     let got = parseSettings('');
     let want: Settings = {
       selectedCourses: [],
-      forbiddenGroups: [],  // Wait, what? Why is this duplicated?
+      forbiddenGroups: [],  // TODO(lutzky): Wait, what? Why is this duplicated?
       customEvents: '',
       catalogUrl:
           'https://storage.googleapis.com/repy-176217.appspot.com/latest.json',
@@ -25,14 +25,15 @@ describe('Settings parser', function() {
 
   it('should operate correctly on settings from 2018-12-07', function() {
     let got = parseSettings(
-        '{"catalogUrl":"https://raw.githubusercontent.com/michael-maltsev/cheese-fork/gh-pages/courses/courses_201801.js","selectedCourses":[104016,104004,234112,114051],"forbiddenGroups":[],"customEvents":"","filterSettings":{"forbiddenGroups":[],"noCollisions":true,"ratingMax":{"earliestStart":null,"freeDays":null,"latestFinish":12,"numRuns":null},"ratingMin":{"earliestStart":6,"freeDays":null,"latestFinish":null,"numRuns":null}}}');
+        '{"catalogUrl":"https://raw.githubusercontent.com/michael-maltsev/cheese-fork/gh-pages/courses/courses_201801.js","selectedCourses":[104016,104004,234112,114051],"forbiddenGroups":[],"customEvents":"","filterSettings":{"forbiddenGroups":[],"noCollisions":true,"ratingMax":{"earliestStart":null,"freeDays":null,"latestFinish":12,"numRuns":null},"ratingMin":{"earliestStart":6,"freeDays":null,"latestFinish":null,"numRuns":null,"invalidSetting":5}}}');
 
     let want: Settings = {
       selectedCourses: [104016, 104004, 234112, 114051],
-      forbiddenGroups: [],  // Wait, what? Why is this duplicated?
+      forbiddenGroups: [],  // TODO(lutzky): Wait, what? Why is this duplicated?
       customEvents: '',
       catalogUrl:
-          'https://storage.googleapis.com/repy-176217.appspot.com/latest.json',
+          'https://raw.githubusercontent.com/michael-maltsev/cheese-fork/gh-pages/courses/courses_201801.js',
+
       filterSettings: {
         noCollisions: true,
         forbiddenGroups: [],

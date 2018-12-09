@@ -1,4 +1,5 @@
 import {FilterSettings} from './common';
+import {RatingType} from './ratings';
 
 const defaultCatalogUrl =
     'https://storage.googleapis.com/repy-176217.appspot.com/latest.json';
@@ -37,9 +38,33 @@ export function parseSettings(s: string): Settings {
     },
   };
 
-  if (s != '') {
-    result = {...result, ...JSON.parse(s)};
+  if (s == '') {
+    return result;
   }
 
+  let parsed = JSON.parse(s);
+  parsed.filterSettings.ratingMin =
+      loadRatingsMap(parsed.filterSettings.ratingMin);
+  parsed.filterSettings.ratingMax =
+      loadRatingsMap(parsed.filterSettings.ratingMax);
+
+  result = {...result, ...parsed};
+
+  return result;
+}
+
+function loadRatingsMap(savedRatings: any): Map<RatingType, number> {
+  let result = new Map<RatingType, number>();
+  for (let k of Object.keys(savedRatings)) {
+    let newKey = RatingType[k as keyof typeof RatingType];
+    if (typeof newKey == 'undefined') {
+      console.error(`Ignored unknown saved rating ${k}`);
+      continue;
+    }
+    let value = savedRatings[k];
+    if (value != null) {
+      result.set(newKey, value);
+    }
+  }
   return result;
 }
